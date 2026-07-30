@@ -1,0 +1,109 @@
+classDiagram
+    %% AI & RAG Components
+    class TaskValidator {
+        +pet: Pet
+        +task: Task
+        +suggestion: str
+        +validate() str
+        +get_correction_suggestion() str
+    }
+
+    class ScheduleOptimizer {
+        +scheduler: Scheduler
+        +tasks: List~Task~
+        +optimized_order: List~Task~
+        +optimize_schedule() List~Task~
+        +explain_ordering() str
+    }
+
+    class KnowledgeRetriever {
+        -knowledge_base: KnowledgeBase
+        +get_breed_guidelines(species) dict
+        +get_care_requirements(species) dict
+        +validate_against_knowledge(pet, task) bool
+    }
+
+    class KnowledgeBase {
+        -breed_guidelines: dict
+        -care_requirements: dict
+        +query_breed(species) dict
+        +get_exercise_range(species) tuple
+        +get_grooming_frequency(species) str
+    }
+
+    %% Human Evaluation
+    class HumanEvaluator {
+        -user_feedback: dict
+        +review_task_suggestion(task, suggestion) bool
+        +review_schedule_suggestion(schedule, explanation) bool
+        +approve_or_reject() bool
+        +record_decision(decision, reason) None
+    }
+
+    %% Testing & Quality
+    class TestSuite {
+        -validator_tests: List~Test~
+        -optimizer_tests: List~Test~
+        +test_validator_accuracy() float
+        +test_optimizer_logic() float
+        +validate_knowledge_match() bool
+        +test_no_conflicts_introduced() bool
+    }
+
+    %% Core System (Existing)
+    class Scheduler {
+        +pets: List~Pet~
+        +tasks: List~Task~
+        +add_task(pet_name, task) bool
+        +sort_by_time(pets) List~Task~
+        +filter_tasks() List~Task~
+    }
+
+    class Pet {
+        +name: str
+        +species: str
+        +tasks: List~Task~
+        +get_info() str
+    }
+
+    class Task {
+        +description: str
+        +duration: int
+        +frequency: str
+        +priority: str
+        +due_date: date
+        +completion_status: str
+    }
+
+    class Owner {
+        +name: str
+        +pets: List~Pet~
+        +scheduler: Scheduler
+        +add_pet(pet) None
+    }
+
+    %% Relationships & Data Flow
+
+    %% Task Validation Flow
+    TaskValidator --> KnowledgeRetriever: queries for breed info
+    KnowledgeRetriever --> KnowledgeBase: retrieves guidelines
+    TaskValidator --> HumanEvaluator: sends suggestion for review
+    HumanEvaluator --> Scheduler: approved task stored here
+
+    %% Schedule Optimization Flow
+    ScheduleOptimizer --> Scheduler: fetches current tasks
+    ScheduleOptimizer --> HumanEvaluator: sends optimized schedule + explanation
+    HumanEvaluator --> Scheduler: user approves changes
+
+    %% Testing Flow
+    TestSuite --> TaskValidator: validates accuracy
+    TestSuite --> ScheduleOptimizer: validates logic
+    TestSuite --> KnowledgeBase: verifies recommendations match knowledge
+
+    %% Core System Integration
+    Owner *-- Pet : owns
+    Owner *-- Scheduler : has
+    Pet *-- Task : contains
+    Scheduler --> Pet : manages
+    Scheduler --> Task : schedules
+    
