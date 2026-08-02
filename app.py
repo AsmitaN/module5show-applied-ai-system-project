@@ -1,5 +1,9 @@
+from dotenv import load_dotenv
+load_dotenv()
 import streamlit as st
-from pawpal_system import Owner, Pet, Task, Scheduler
+from pawpal_system import Owner, Pet, Task, Scheduler, ScheduleOptimizer
+from llm_client import GeminiClient
+from datetime import date
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -111,11 +115,13 @@ with col2:
     current_owner = st.session_state.owners[owner_name]
     pet_name = st.selectbox("Pet", options=(pet.name for pet in current_owner.pets), index=0, key="owner_pet_name_tasks")
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 with col1:
     task_description = st.text_input("Description", placeholder="Enter a short title for the task")
 with col2:
     duration = st.number_input("Duration (minutes)", placeholder="Enter how long the task will take")
+with col3:
+    due_date = st.date_input("Pick a date")
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -126,16 +132,35 @@ with col3:
     time = st.text_input("Time to complete by", placeholder="Enter in HH:MM format")
 
 current_owner.scheduler = Scheduler(current_owner.pets)
+current_owner.schedule_optimizer = ScheduleOptimizer(current_owner.scheduler)
 
 if st.button("Add task"):
     if task_description!="" and duration!="" and frequency!="" and priority!="" and time!="":
-        new_task = Task(task_description, duration, frequency, priority, time)
-        time_conflict_exists = current_owner.scheduler.check_scheduling_conflicts(pet_name, new_task)
-        if time_conflict_exists == False:
+        new_task = Task(task_description, duration, frequency, priority, time, due_date=due_date)
+        #time_conflict_exists = current_owner.scheduler.check_scheduling_conflicts(pet_name, new_task)
+        time_conflict_report = current_owner.schedule_optimizer.suggest_resolution(pet_name, new_task)
+        if time_conflict_report["status"] == "conflict_detected":
+            analysis_context = current_owner.schedule_optimizer.prepare_conflict_analysis(
+            pet_name, new_task, time_conflict_report)
+            prompt = current_owner.schedule_optimizer.get_recommendation_prompt(analysis_context)
+            client = GeminiClient()
+            recommendation = client.get_client_recommendation(prompt)
+            st.info(recommendation)
+        else:
             current_owner.scheduler.add_task(pet_name, new_task)
             st.success(f"Added new task: {task_description} - {pet_name}")
-        else:
-            st.warning("⚠️ TIME CONFLICT DETECTED. See terminal for more details")
+        ##time_conflict_report = current_owner.schedule_optimizer.suggest_resolution(pet_name, new_task)
+        ##if time_conflict_report["status"] == "no_conflict":
+            # don't suggest anything new, display "The task was successfully added!"
+            ##current_owner.scheduler.add_task(pet_name, new_task)
+            ##st.success(f"Added new task: {task_description} - {pet_name}")
+        # if time_conflict_exists == False:
+        #     current_owner.scheduler.add_task(pet_name, new_task)
+        #     st.success(f"Added new task: {task_description} - {pet_name}")
+        ##else:
+            ##st.write("TIME CONFLICT DETECTED")
+            ##user_selected_alternative_time = st.radio(label="Choose an alternative time:", options=time_conflict_report["alternative_times"])
+            #st.warning("⚠️ TIME CONFLICT DETECTED. See terminal for more details")
 
     else:
         st.error("Please enter all values needed to add a new task")
