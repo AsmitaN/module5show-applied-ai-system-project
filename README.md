@@ -17,10 +17,17 @@ The Scheduling & TaskFeedback topic contains the Scheduler and TaskValidator cla
 The AI Integration Component theme includes only the GeminiClient class, which configures the Gemini client, then requests and receives information from the API.
 
 ## Setup Instructions
+1) Activate virtual environment
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+```
+2) Install dependencies\
+`pip install -r requirements.txt`
+3) Rename `.env.example` (located in project root) to `.env`
+4) Visit the [Gemini API key page](https://aistudio.google.com/app/api-keys) and create your own key. Copy the key into your `.env` file 
+5) Start the app
+```bash 
 python -m streamlit run app.py
 ```
 
