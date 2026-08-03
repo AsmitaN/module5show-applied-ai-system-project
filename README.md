@@ -88,7 +88,13 @@ Something else to note is that recurring completed tasks are reset to pending on
 Some trade-offs of the design are that it currently can't sort tasks from highest to lowest priority (or vice versa) and the schedule across various days is not shown in a calendar display-format.
 
 ## Testing Summary
-Human evaluation was performed to measure the system's reliability\
+Automated testing (pytest) and human evaluation was performed to measure the system's reliability.\
+6 out of 6 tests from `test_pawpal_applied_ai_system.py` passed, one of which included sending context to the Gemini API and receiving conflict analysis.\
+Note, all `test_pawpal.py` tests fail because test my older version of Pawpal+. Instead, run all tests in `test_pawpal_applied_ai_system.py` to test the extended version of my project using the command below.
+
+```bash
+python -m pytest -v -s tests/test_pawpal_applied_ai_system.py
+```
 
 | Test Input | Evaluation Criteria | Result |
 |------------|---------------------|--------|

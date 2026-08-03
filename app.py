@@ -136,45 +136,37 @@ current_owner.task_validator = TaskValidator(current_owner.scheduler)
 
 if st.button("Add task"):
     if task_description!="" and duration!="" and frequency!="" and priority!="" and time!="":
+        if duration < 0:
+            st.error("Please enter a valid value for duration")
+            st.stop()
         client = GeminiClient()
         new_task = Task(task_description, duration, frequency, priority, time, due_date=due_date)
-        #time_conflict_exists = current_owner.scheduler.check_scheduling_conflicts(pet_name, new_task)
+        # checks if there are conflicts with existing tasks in current owner's schedule
         conflict_summary = current_owner.task_validator.prepare_conflict_summary(pet_name, new_task)
-        #time_conflict_report = current_owner.task_validator.suggest_resolution(pet_name, new_task)
         if conflict_summary["status"] == "conflict_detected":
-            prompt = current_owner.task_validator.get_recommendation_prompt(conflict_summary)
-            recommendation = client.get_client_recommendation(prompt)
-            st.info(recommendation)
+            # retrieves a task-specific prompt to send to the agent for conflict
+            # explanation and alternative times
+            conflict_analysis_prompt = current_owner.task_validator.get_recommendation_prompt(conflict_summary)
+            conflict_analysis = client.get_client_analysis(conflict_analysis_prompt)
+            # displays the received insight in an info box
+            st.info(conflict_analysis)
         else:
-            # No conflict: get task analysis
+            # no conflict: get task analysis
             analysis_prompt = current_owner.task_validator.get_task_analysis_prompt(pet_name, new_task)
-            analysis = client.get_client_recommendation(analysis_prompt)  # Reuse same client
-            
+            task_analysis = client.get_client_analysis(analysis_prompt)  # reuse same client
             st.session_state.task_pending_review = {
                 "task": new_task,
                 "pet_name": pet_name,
-                "analysis": analysis
+                "analysis": task_analysis
             }
             st.session_state.show_analysis = True
-            #current_owner.scheduler.add_task(pet_name, new_task)
-            #st.success(f"Added new task: {task_description} - {pet_name}")
-        ##time_conflict_report = current_owner.schedule_optimizer.suggest_resolution(pet_name, new_task)
-        ##if time_conflict_report["status"] == "no_conflict":
-            # don't suggest anything new, display "The task was successfully added!"
-            ##current_owner.scheduler.add_task(pet_name, new_task)
-            ##st.success(f"Added new task: {task_description} - {pet_name}")
-        # if time_conflict_exists == False:
-        #     current_owner.scheduler.add_task(pet_name, new_task)
-        #     st.success(f"Added new task: {task_description} - {pet_name}")
-        ##else:
-            ##st.write("TIME CONFLICT DETECTED")
-            ##user_selected_alternative_time = st.radio(label="Choose an alternative time:", options=time_conflict_report["alternative_times"])
-            #st.warning("⚠️ TIME CONFLICT DETECTED. See terminal for more details")
 
     else:
         st.error("Please enter all values needed to add a new task")
         st.stop()
 
+# executes only for a non-conflicting task
+# signifies that user evaluation of AI analysis is required in order to proceed
 if st.session_state.get("show_analysis"):
     pending = st.session_state.task_pending_review
     st.info("### AI Analysis\n" + pending["analysis"])
@@ -186,7 +178,7 @@ if st.session_state.get("show_analysis"):
             st.success(f"Added: {pending['task'].description}")
             st.session_state.show_analysis = False
             st.session_state.task_pending_review = None
-    
+    # doesn't add the task to owner's schedule because user wants to edit task details
     with col2:
         if st.button("✏️ Edit Task"):
             st.info("Modify the task details above and click 'Add task' again")
@@ -298,6 +290,8 @@ if st.button("Submit"):
             for task in pet.tasks:
                 if task_description == task.description:
                     task.mark_complete()
+                    # print statements included to show that recurring task's
+                    # completion status only resets when today's date is the due date
                     print("BEFORE RESET: Marked as complete?: " + str(task.completion_status == "complete"))
                     st.success(f"{task_description} marked as complete (and will be reset to pending after this message)")
                     current_owner.scheduler.reset_completed_tasks_to_pending(date.today())

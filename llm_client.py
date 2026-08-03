@@ -35,8 +35,8 @@ class GeminiClient:
             )
         self.client = genai.Client(api_key=api_key)
     
-    def get_client_recommendation(self, prompt: str) -> str:
-        """Get Gemini recommendation for scheduling conflict."""
+    def get_client_analysis(self, prompt: str) -> str:
+        """Get Gemini analysis of task validation."""
         response = self.client.models.generate_content(
                     model=GEMINI_MODEL_NAME,
                     contents=prompt
