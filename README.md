@@ -22,7 +22,7 @@ The AI Integration Component theme includes only the GeminiClient class, which c
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
-2) Install dependencies\
+2) Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
