@@ -109,7 +109,7 @@ When "Sort by earliest datetime" is checked (no other filters applied) and user 
 | Mochi | 2026-08-03 | 08:00 | Feeding | 10.0000 | Daily | high | pending |
 | Bubble | 2026-08-03 | 10:30 | Morning feeding | 2.0000 | Daily | high | pending |
 | Flora | 2026-08-03 | 20:00 | Feeding | 2.0000 | Daily | high | pending |
-| Mochi | 2026-08-03 | 09:00 | Walk | 30.0000 | Daily | high | complete |
+| Mochi | 2026-08-04 | 09:00 | Walk | 30.0000 | Daily | high | complete |
 
 ## 📸 Brief Demo Walkthrough
 
