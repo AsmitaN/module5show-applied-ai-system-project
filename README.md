@@ -23,7 +23,9 @@ python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
 2) Install dependencies\
-`pip install -r requirements.txt`
+```bash
+pip install -r requirements.txt
+```
 3) Rename `.env.example` (located in project root) to `.env`
 4) Visit the [Gemini API key page](https://aistudio.google.com/app/api-keys) and create your own key. Copy the key into your `.env` file 
 5) Start the app
