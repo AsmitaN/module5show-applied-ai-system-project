@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 import streamlit as st
-from pawpal_system import Owner, Pet, Task, Scheduler, ScheduleOptimizer
+from pawpal_system import Owner, Pet, Task, Scheduler, TaskValidator
 from llm_client import GeminiClient
 from datetime import date
 
@@ -132,23 +132,32 @@ with col3:
     time = st.text_input("Time to complete by", placeholder="Enter in HH:MM format")
 
 current_owner.scheduler = Scheduler(current_owner.pets)
-current_owner.schedule_optimizer = ScheduleOptimizer(current_owner.scheduler)
+current_owner.task_validator = TaskValidator(current_owner.scheduler)
 
 if st.button("Add task"):
     if task_description!="" and duration!="" and frequency!="" and priority!="" and time!="":
+        client = GeminiClient()
         new_task = Task(task_description, duration, frequency, priority, time, due_date=due_date)
         #time_conflict_exists = current_owner.scheduler.check_scheduling_conflicts(pet_name, new_task)
-        time_conflict_report = current_owner.schedule_optimizer.suggest_resolution(pet_name, new_task)
-        if time_conflict_report["status"] == "conflict_detected":
-            analysis_context = current_owner.schedule_optimizer.prepare_conflict_analysis(
-            pet_name, new_task, time_conflict_report)
-            prompt = current_owner.schedule_optimizer.get_recommendation_prompt(analysis_context)
-            client = GeminiClient()
+        conflict_summary = current_owner.task_validator.prepare_conflict_summary(pet_name, new_task)
+        #time_conflict_report = current_owner.task_validator.suggest_resolution(pet_name, new_task)
+        if conflict_summary["status"] == "conflict_detected":
+            prompt = current_owner.task_validator.get_recommendation_prompt(conflict_summary)
             recommendation = client.get_client_recommendation(prompt)
             st.info(recommendation)
         else:
-            current_owner.scheduler.add_task(pet_name, new_task)
-            st.success(f"Added new task: {task_description} - {pet_name}")
+            # No conflict: get task analysis
+            analysis_prompt = current_owner.task_validator.get_task_analysis_prompt(pet_name, new_task)
+            analysis = client.get_client_recommendation(analysis_prompt)  # Reuse same client
+            
+            st.session_state.task_pending_review = {
+                "task": new_task,
+                "pet_name": pet_name,
+                "analysis": analysis
+            }
+            st.session_state.show_analysis = True
+            #current_owner.scheduler.add_task(pet_name, new_task)
+            #st.success(f"Added new task: {task_description} - {pet_name}")
         ##time_conflict_report = current_owner.schedule_optimizer.suggest_resolution(pet_name, new_task)
         ##if time_conflict_report["status"] == "no_conflict":
             # don't suggest anything new, display "The task was successfully added!"
@@ -165,6 +174,24 @@ if st.button("Add task"):
     else:
         st.error("Please enter all values needed to add a new task")
         st.stop()
+
+if st.session_state.get("show_analysis"):
+    pending = st.session_state.task_pending_review
+    st.info("### AI Analysis\n" + pending["analysis"])
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Add Task"):
+            current_owner.scheduler.add_task(pending["pet_name"], pending["task"])
+            st.success(f"Added: {pending['task'].description}")
+            st.session_state.show_analysis = False
+            st.session_state.task_pending_review = None
+    
+    with col2:
+        if st.button("✏️ Edit Task"):
+            st.info("Modify the task details above and click 'Add task' again")
+            st.session_state.show_analysis = False
+            st.session_state.task_pending_review = None
 
 # Debug: Display all created tasks
 st.markdown("### 🐛 Debug: Created Tasks")
@@ -194,7 +221,7 @@ owner_name = st.selectbox("Owner", options=list(st.session_state.owners.keys()),
 current_owner = st.session_state.owners[owner_name]
 if current_owner.scheduler:
     current_owner.scheduler.retrieve_all_tasks()
-    current_owner.scheduler.reset_completed_tasks_to_pending()
+    current_owner.scheduler.reset_completed_tasks_to_pending(date.today())
 
 col1, col2, col3 = st.columns(3)
 
@@ -273,5 +300,5 @@ if st.button("Submit"):
                     task.mark_complete()
                     print("BEFORE RESET: Marked as complete?: " + str(task.completion_status == "complete"))
                     st.success(f"{task_description} marked as complete (and will be reset to pending after this message)")
-                    current_owner.scheduler.reset_completed_tasks_to_pending()
+                    current_owner.scheduler.reset_completed_tasks_to_pending(date.today())
                     print("AFTER RESET: Marked as complete?: " + str(task.completion_status == "complete"))

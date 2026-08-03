@@ -1,6 +1,18 @@
 from typing import List
 from datetime import date, timedelta
 
+# Owner: Manages multiple pets and provides access to all their tasks.
+class Owner:
+    def __init__(self, name: str):
+        self.name: str = name
+        self.pets: List[Pet] = []
+        self.scheduler: Scheduler = None
+        self.task_validator: TaskValidator = None
+    
+    def add_pet(self, pet: Pet) -> None:
+        """Add a pet to the owner's pet list."""
+        self.pets.append(pet)
+
 # Stores pet details and a list of tasks.
 class Pet:
     def __init__(self, name: str, species: str):
@@ -43,13 +55,11 @@ class Task:
         return f"{self.due_date} {self.time} - {self.description} ({self.duration} mins) [{self.priority}], {self.completion_status}"
 
     def mark_complete(self):
-        """Mark the task as complete and advance due_date if recurring. Auto-resets recurring tasks to pending."""
+        """Mark the task as complete and advance due_date if recurring."""
         interval = self.FREQUENCY_INTERVALS.get(self.frequency)
         if interval:
             self.due_date += interval
-            self.completion_status = "pending"
-        else:
-            self.completion_status = "complete"
+        self.completion_status = "complete"
 
 # The "Brain" that retrieves, organizes, and manages tasks across pets.
 class Scheduler:
@@ -98,20 +108,6 @@ class Scheduler:
                 filtered = [task for task in filtered if task in pet.tasks]
 
         return filtered
-
-    def check_scheduling_conflicts(self, pet_name: str, task: 'Task') -> bool:
-        """Check if a task conflicts with existing tasks. Returns True if conflict exists, False if no conflict."""
-        for pet in self.pets:
-            for existing_task in pet.tasks:
-                # checks if the time and date of an existing task coincides with the new task (same/different pets included)
-                if existing_task.due_date == task.due_date and existing_task.time == task.time:
-                    print(f"⚠️  CONFLICT DETECTED: Task '{task.description}' conflicts with existing task!")
-                    print(f"   Existing: {existing_task.description} at {existing_task.time} on {existing_task.due_date} for {pet.name}")
-                    print(f"   New task: {task.description} at {task.time} on {task.due_date} for {pet_name}")
-                    # signals that scheduling conflict exists
-                    return True
-        # signals that there is no scheduling conflict after looping through each pet
-        return False
     
     def retrieve_all_tasks(self):
         """Retrieve and aggregate all tasks from all pets."""
@@ -122,29 +118,23 @@ class Scheduler:
     def add_task(self, pet_name: str, task: 'Task') -> bool:
         """Add a task to a pet after checking for scheduling conflicts. Returns True if added, False if conflict blocked it."""
         pet = self.get_pet_by_name(pet_name)
-
-        if self.check_scheduling_conflicts(pet_name, task):
-            print(f"❌ Task not added due to scheduling conflict.")
-            return False
-
         pet.tasks.append(task)
         # updates the scheduler's common list of tasks after every new task is added to a pet
         self.retrieve_all_tasks()
         return True
 
-    def reset_completed_tasks_to_pending(self) -> None:
-        """Reset all tasks with completion_status 'complete' back to 'pending'."""
+    def reset_completed_tasks_to_pending(self, reference_date: date = None) -> None:
+        """Reset tasks with completion_status 'complete' back to 'pending' if their due_date matches reference_date."""
         for task in self.tasks:
-            if task.completion_status == "complete":
+            if task.completion_status == "complete" and task.due_date == reference_date:
                 task.completion_status = "pending"
 
-class ScheduleOptimizer:
-    """Intelligently resolves scheduling conflicts and optimizes task ordering."""
-
+# Finds scheduling conflicts and generates prompts to receive alternative times or feedback on non-conflicting tasks.
+class TaskValidator:
+    
     def __init__(self, scheduler: Scheduler):
         self.scheduler: Scheduler = scheduler
         self.tasks: List[Task] = []
-        self.optimized_order: List[Task] = []
 
     def times_overlap(self, start1_str: str, duration1: int, start2_str: str, duration2: int) -> bool:
         """Check if two tasks overlap based on start time and duration."""
@@ -156,6 +146,7 @@ class ScheduleOptimizer:
         end1_mins = start1_mins + duration1
         end2_mins = start2_mins + duration2
 
+        # returns True if the tasks overlap at some point in time
         return start1_mins < end2_mins and start2_mins < end1_mins
 
     def find_occupied_times(self, due_date: date) -> List[str]:
@@ -164,49 +155,60 @@ class ScheduleOptimizer:
         for pet in self.scheduler.pets:
             for task in pet.tasks:
                 if task.due_date == due_date:
-                    # Parse start time
+                    # parse start time
                     start_h, start_m = map(int, task.time.split(':'))
                     start_mins = start_h * 60 + start_m
 
-                    # Calculate end time based on duration
+                    # calculate end time based on duration
                     end_mins = start_mins + task.duration
                     end_h = end_mins // 60
                     end_m = end_mins % 60
 
-                    # Format as "HH:MM to HH:MM"
+                    # format as "HH:MM to HH:MM"
                     time_slot = f"{start_h:02d}:{start_m:02d} to {int(end_h):02d}:{int(end_m):02d}"
                     occupied.append(time_slot)
         return occupied
 
-    def suggest_resolution(self, pet_name: str, task: Task) -> dict:
-        """Suggest alternative times when a scheduling conflict is detected."""
+    def prepare_conflict_summary(self, pet_name: str, task: Task) -> dict:
+        """Prepare structured conflict summary data for AI recommendation."""
         conflict_task = None
         conflicting_pet = None
 
         for pet in self.scheduler.pets:
             for existing_task in pet.tasks:
                 if existing_task.due_date == task.due_date:
+                    # if the the new task start/end times overlap with that of an 
+                    # existing task
                     if self.times_overlap(task.time, task.duration, existing_task.time, existing_task.duration):
+                        # saves the task and pet to explain reason for conflict
                         conflict_task = existing_task
                         conflicting_pet = pet
+                        # exits from iterating through current pet's tasks
                         break
+            # exits from iterating through other pets' task lists as conflict was 
+            # already found
             if conflict_task:
                 break
-
+        # if the new task's start/end time doesn't concide with any of the pets' task lists
         if not conflict_task:
             return {"status": "no_conflict"}
+        
+        pet = self.scheduler.get_pet_by_name(pet_name)
+        pet_info = f"{pet_name} ({pet.species})" if pet else pet_name
 
-        #alternatives = self.generate_alternative_times(task)
+        # list of all time slots occupied by current tasks on a given day
         occupied_time_slots = self.find_occupied_times(task.due_date)
 
-        suggestion = {
+        conflict_summary = {
             "status": "conflict_detected",
             "new_task": {
                 "description": task.description,
                 "requested_time": task.time,
                 "duration": task.duration,
                 "due_date": str(task.due_date),
-                "pet": pet_name
+                "priority": task.priority,
+                "frequency": task.frequency,
+                "pet": pet_info
             },
             "conflicting_task": {
                 "description": conflict_task.description,
@@ -218,98 +220,30 @@ class ScheduleOptimizer:
             "occupied_times": occupied_time_slots
         }
 
-        return suggestion
-
-    def optimize_schedule(self) -> List[Task]:
-        """Generate an optimized task order based on priority, due date, and time."""
-        self.tasks = self.scheduler.tasks.copy()
-        pending_tasks = [t for t in self.tasks if t.completion_status == "pending"]
-        completed_tasks = [t for t in self.tasks if t.completion_status == "complete"]
-
-        self.optimized_order = sorted(
-            pending_tasks,
-            key=lambda t: (-t.get_priority_level(), t.due_date, tuple(map(int, t.time.split(':'))))
-        )
-        self.optimized_order.extend(completed_tasks)
-
-        return self.optimized_order
-
-    def explain_ordering(self) -> str:
-        """Return a human-readable explanation of the optimized task ordering."""
-        if not self.optimized_order:
-            return "No tasks to optimize."
-
-        explanation = "Schedule Optimization Report:\n"
-        explanation += "=" * 50 + "\n"
-        explanation += "Tasks are ordered by:\n"
-        explanation += "1. Priority (High → Medium → Low)\n"
-        explanation += "2. Due date (earliest first)\n"
-        explanation += "3. Time of day (earliest first)\n\n"
-        explanation += "Optimized Order:\n"
-        explanation += "-" * 50 + "\n"
-
-        for i, task in enumerate(self.optimized_order, 1):
-            priority_label = "HIGH" if task.get_priority_level() == 3 else ("MEDIUM" if task.get_priority_level() == 2 else "LOW")
-            status = "✓" if task.completion_status == "complete" else "○"
-            explanation += f"{i}. {status} [{priority_label}] {task.description}\n"
-            explanation += f"   Due: {task.due_date} at {task.time} ({task.duration} mins)\n"
-
-        return explanation
-
-    def prepare_conflict_analysis(self, pet_name: str, task: Task, conflict_report: dict) -> dict:
-        """Prepare structured conflict analysis data for AI recommendation."""
-        if conflict_report["status"] == "no_conflict":
-            return {"status": "no_conflict"}
-
-        pet = self.scheduler.get_pet_by_name(pet_name)
-        pet_info = f"{pet.name} ({pet.species})" if pet else pet_name
-
-        analysis_context = {
-            "pet": pet_info,
-            "new_task": {
-                "description": conflict_report["new_task"]["description"],
-                "requested_time": conflict_report["new_task"]["requested_time"],
-                "duration": conflict_report["new_task"]["duration"],
-                "priority": task.priority,
-                "frequency": task.frequency,
-                "due_date": task.due_date
-            },
-            "conflicting_task": {
-                "description": conflict_report["conflicting_task"]["description"],
-                "time": conflict_report["conflicting_task"]["time"],
-                "duration": conflict_report["conflicting_task"]["duration"],
-                "pet": conflict_report["conflicting_task"]["pet"],
-                "due_date": conflict_report["conflicting_task"]["due_date"]
-            },
-            "occupied_times": conflict_report["occupied_times"]
-        }
-
-        return analysis_context
+        return conflict_summary
 
     def get_recommendation_prompt(self, analysis_context: dict) -> str:
         """Generate a structured prompt for AI agent to recommend conflict resolution."""
-        #if analysis_context.get("status") == "no_conflict":
-            #return ""
+        prompt = f"""
+You are a pet care scheduling assistant. Analyze this scheduling conflict and recommend the best resolution.
 
-        prompt = f"""You are a pet care scheduling assistant. Analyze this scheduling conflict and recommend the best resolution.
-
-Pet: {analysis_context['pet']}
+Pet: {analysis_context["new_task"]["pet"]}
 
 NEW TASK TO ADD:
-- Description: {analysis_context['new_task']['description']}
-- Requested Time: {analysis_context['new_task']['requested_time']}
-- Duration: {analysis_context['new_task']['duration']} minutes
-- Priority: {analysis_context['new_task']['priority']}
-- Frequency: {analysis_context['new_task']['frequency']}
+- Description: {analysis_context["new_task"]["description"]}
+- Requested Time: {analysis_context["new_task"]["requested_time"]}
+- Duration: {analysis_context["new_task"]["duration"]} minutes
+- Priority: {analysis_context["new_task"]["priority"]}
+- Frequency: {analysis_context["new_task"]["frequency"]}
 
 CONFLICTING WITH EXISTING TASK:
-- Description: {analysis_context['conflicting_task']['description']}
-- Date: {analysis_context['conflicting_task']['due_date']}
-- Time: {analysis_context['conflicting_task']['time']}
-- Duration: {analysis_context['conflicting_task']['duration']} minutes
-- Pet: {analysis_context['conflicting_task']['pet']}
+- Description: {analysis_context["conflicting_task"]["description"]}
+- Date: {analysis_context["conflicting_task"]["due_date"]}
+- Time: {analysis_context["conflicting_task"]["time"]}
+- Duration: {analysis_context["conflicting_task"]["duration"]} minutes
+- Pet: {analysis_context["conflicting_task"]["pet"]}
 
-TIME SLOTS OCCUPIED BY CURRENT TASKS:
+TIME SLOTS OCCUPIED BY CURRENT TASKS FROM ALL PETS:
 {analysis_context["occupied_times"]}
 
 Consider:
@@ -318,28 +252,32 @@ Consider:
 3. Reasonableness of each time slot
 4. Pet routine and recovery time between activities
 
-Recommend top three alternative times is best and explain why. If no alternatives, suggest next steps."""
+Recommend top three alternative times and explain why."""
 
         return prompt
 
-    def get_ai_recommendation(self, analysis_context: dict, api_key: str) -> str:
-        """Get AI recommendation using Gemini API."""
-        genai.configure(api_key=api_key)
+    def get_task_analysis_prompt(self, pet_name: str, task: Task) -> str:
+        """Generate a prompt for AI to analyze task details."""
+        pet = self.scheduler.get_pet_by_name(pet_name)
+        pet_info = f"{pet_name} ({pet.species})" if pet else pet_name
         
-        prompt = self.get_recommendation_prompt(analysis_context)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
-        
-        return response.text
+        prompt = f"""
+    You are a pet care consultant. Analyze this task and provide brief, constructive feedback.
 
-# Owner: Manages multiple pets and provides access to all their tasks.
-class Owner:
-    def __init__(self, name: str):
-        self.name: str = name
-        self.pets: List[Pet] = []
-        self.scheduler: Scheduler = None
-        self.schedule_optimizer: ScheduleOptimizer = None
-    
-    def add_pet(self, pet: Pet) -> None:
-        """Add a pet to the owner's pet list."""
-        self.pets.append(pet)
+    PET: {pet_info}
+
+    TASK TO ANALYZE:
+    - Description: {task.description}
+    - Duration: {task.duration} minutes
+    - Time: {task.time}
+    - Priority: {task.priority}
+    - Frequency: {task.frequency}
+
+    Consider:
+    1. Is this activity appropriate for a {pet.species}?
+    2. Is the duration reasonable?
+    3. Does the frequency align with typical pet care needs?
+    4. Any suggestions for improvement?
+
+    Keep feedback concise (max 4-5 sentences) and supportive."""
+        return prompt

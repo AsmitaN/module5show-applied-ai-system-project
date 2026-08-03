@@ -1,68 +1,18 @@
 classDiagram
-    %% AI & RAG Components
-    class TaskValidator {
-        +pet: Pet
-        +task: Task
-        +suggestion: str
-        +validate() str
-        +get_correction_suggestion() str
-    }
-
-    class ScheduleOptimizer {
-        +scheduler: Scheduler
-        +tasks: List~Task~
-        +optimized_order: List~Task~
-        +optimize_schedule() List~Task~
-        +explain_ordering() str
-    }
-
-    class KnowledgeRetriever {
-        -knowledge_base: KnowledgeBase
-        +get_breed_guidelines(species) dict
-        +get_care_requirements(species) dict
-        +validate_against_knowledge(pet, task) bool
-    }
-
-    class KnowledgeBase {
-        -breed_guidelines: dict
-        -care_requirements: dict
-        +query_breed(species) dict
-        +get_exercise_range(species) tuple
-        +get_grooming_frequency(species) str
-    }
-
-    %% Human Evaluation
-    class HumanEvaluator {
-        -user_feedback: dict
-        +review_task_suggestion(task, suggestion) bool
-        +review_schedule_suggestion(schedule, explanation) bool
-        +approve_or_reject() bool
-        +record_decision(decision, reason) None
-    }
-
-    %% Testing & Quality
-    class TestSuite {
-        -validator_tests: List~Test~
-        -optimizer_tests: List~Test~
-        +test_validator_accuracy() float
-        +test_optimizer_logic() float
-        +validate_knowledge_match() bool
-        +test_no_conflicts_introduced() bool
-    }
-
-    %% Core System (Existing)
-    class Scheduler {
+    %% Core Design
+    class Owner {
+        +name: str
         +pets: List~Pet~
-        +tasks: List~Task~
-        +add_task(pet_name, task) bool
-        +sort_by_time(pets) List~Task~
-        +filter_tasks() List~Task~
+        +scheduler: Scheduler
+        +task_validator: TaskValidator
+        +add_pet(pet) None
     }
 
     class Pet {
         +name: str
         +species: str
         +tasks: List~Task~
+        +get_name() str
         +get_info() str
     }
 
@@ -71,39 +21,48 @@ classDiagram
         +duration: int
         +frequency: str
         +priority: str
+        +time: str
         +due_date: date
         +completion_status: str
+        +get_priority_level() int
+        +get_info() str
+        +mark_complete() None
     }
 
-    class Owner {
-        +name: str
+    %% Scheduling & Task Feedback
+    class Scheduler {
         +pets: List~Pet~
-        +scheduler: Scheduler
-        +add_pet(pet) None
+        +tasks: List~Task~
+        +add_task(pet_name, task) bool
+        +retrieve_all_tasks() None
+        +filter_tasks(status, pet_name) List~Task~
+        +sort_by_time(pets) List~Task~
+        +check_scheduling_conflicts(pet_name, task) bool
+        +print_schedule(pets, schedule) None
     }
 
-    %% Relationships & Data Flow
+    class TaskValidator {
+        +scheduler: Scheduler
+        +tasks: List~Task~
+        +times_overlap(start1, dur1, start2, dur2) bool
+        +find_occupied_times(due_date) List~str~
+        +prepare_conflict_summary(pet_name, task) dict
+        +get_recommendation_prompt(analysis_context) str
+    }
 
-    %% Task Validation Flow
-    TaskValidator --> KnowledgeRetriever: queries for breed info
-    KnowledgeRetriever --> KnowledgeBase: retrieves guidelines
-    TaskValidator --> HumanEvaluator: sends suggestion for review
-    HumanEvaluator --> Scheduler: approved task stored here
+    %% AI Integration Component
+    class GeminiClient {
+        +get_client_recommendation(prompt) str
+    }
 
-    %% Schedule Optimization Flow
-    ScheduleOptimizer --> Scheduler: fetches current tasks
-    ScheduleOptimizer --> HumanEvaluator: sends optimized schedule + explanation
-    HumanEvaluator --> Scheduler: user approves changes
-
-    %% Testing Flow
-    TestSuite --> TaskValidator: validates accuracy
-    TestSuite --> ScheduleOptimizer: validates logic
-    TestSuite --> KnowledgeBase: verifies recommendations match knowledge
-
-    %% Core System Integration
+    %% Data Flow & Relationships
     Owner *-- Pet : owns
     Owner *-- Scheduler : has
+    Owner *-- TaskValidator : has
     Pet *-- Task : contains
     Scheduler --> Pet : manages
     Scheduler --> Task : schedules
+    TaskValidator --> Scheduler : uses to check conflicts
+    TaskValidator --> GeminiClient : sends prompt for recommendation
+    GeminiClient --> TaskValidator : returns AI recommendation
     
