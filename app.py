@@ -11,33 +11,40 @@ st.title("🐾 PawPal+")
 
 st.markdown(
     """
-Welcome to the PawPal+ starter app.
-
-This file is intentionally thin. It gives you a working Streamlit app so you can start quickly,
-but **it does not implement the project logic**. Your job is to design the system and build it.
-
-Use this app as your interactive demo once your backend classes/functions exist.
+Welcome to **PawPal+**, a pet care planning assistant that helps pet owners organize and schedule care tasks for their pets.
 """
 )
 
-with st.expander("Scenario", expanded=True):
+with st.expander("About PawPal+", expanded=True):
     st.markdown(
         """
-**PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
-for their pet(s) based on constraints like time, priority, and preferences.
+**PawPal+** helps pet owners:
+- Create and manage multiple pets with different schedules
+- Add care tasks with priority, frequency, and time constraints
+- Detect scheduling conflicts and receive AI-powered recommendations
+- Build optimized schedules sorted by time or filtered by pet/status
+- Track task completion and manage recurring tasks
 
-You will design and implement the scheduling logic and connect it to this Streamlit UI.
+The system validates each new task against existing schedules and uses AI analysis to ensure tasks are appropriate for the pet and pet care best practices.
 """
     )
 
-with st.expander("What you need to build", expanded=True):
+with st.expander("What you've built", expanded=True):
     st.markdown(
         """
-At minimum, your system should:
+✅ **Core System:**
 - Represent pet care tasks (what needs to happen, how long it takes, priority)
 - Represent the pet and the owner (basic info and preferences)
 - Build a plan/schedule for a day that chooses and orders tasks based on constraints
-- Explain the plan (why each task was chosen and when it happens)
+
+✅ **Features Implemented:**
+- **Owner & Pet Management:** Create owners and add multiple pets per owner
+- **Task Management:** Add tasks with description, duration, frequency, priority, and scheduled time
+- **Conflict Detection:** The `TaskValidator` checks for time conflicts and finds occupied time slots
+- **AI Integration:** Receives AI recommendations for conflict resolution and task appropriateness
+- **Schedule Generation:** Filter by pet or completion status; sort by earliest datetime
+- **Recurring Tasks:** Tasks with Daily/Weekly frequency reset to pending after completion
+- **Task Completion Tracking:** Mark tasks complete and automatic reset to pending if new due date happens to be today's date
 """
     )
 
